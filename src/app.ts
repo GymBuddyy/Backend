@@ -3,6 +3,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import { Logger, ILogObj } from "tslog";
 import UserRouter from './routers/userRouter';
 import { connectToDatabase, collections } from './services/database.service';
+import CommunityRouter from './routers/communityRouter';
 export default class ApplicationServices {
     private app;
     private log: Logger<ILogObj> = new Logger();
@@ -33,6 +34,7 @@ export default class ApplicationServices {
     private addRoutes() {
         this.app.use("/user", new UserRouter().get())
         this.addAuthentication();
+        this.app.use("/community", new CommunityRouter().get());
         this.app.get("/", (req: Request, res: Response) => {
             res.send("Hello from GymBuddy backend")
         })

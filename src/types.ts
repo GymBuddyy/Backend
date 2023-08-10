@@ -13,3 +13,12 @@ export type SigninRequest = {
     password: string,
     deviceId?: string
 }
+
+export type CreateCommunityRequest = {
+    name: string,
+    country: string,
+    city: string,
+    owner: string
+    address?: string,
+    description?: string
+}

@@ -7,7 +7,12 @@ export default class User {
         firstName: string,
         lastName: string,
         email: string,
-        id: ObjectId
+        id: ObjectId,
+        buddies: string[],
+        following: string[],
+        followers: string[],
+        communityFollowing?: string[],
+        community?: string,
     ) {
         // @ts-ignore
     }
