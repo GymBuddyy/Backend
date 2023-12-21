@@ -1,8 +1,8 @@
 import express, { Request, Response } from 'express';
-import { SigninRequest, SignupRequest } from '../types';
 import { collections } from '../services/database.service';
 import { Logger } from 'tslog';
-import bycrypt from "bcrypt";
+import {getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword} from 'firebase/auth';
+import UserAuth from '../types/UserAuth';
 
 export default class UserRouter {
     private router;
@@ -13,77 +13,59 @@ export default class UserRouter {
     }
 
     public addRoutes () {
-        this.router.post("/signup", async (req: Request, res: Response) => {
-            this.log.info("Request for signup")
-            const body: SignupRequest = req.body;
+        this.router.post("/register", async (req:Request, res:Response) => {
+            const {email, username, password} = req.body;
+            const auth = getAuth();
             try {
-                if (!body) return res.status(400).send({message: "NO_BODY_PROVIDED"});
-                if (!body.username) return res.status(400).send({message: "NO_USERNAME_PROVIDED"});
-                const user = await collections.users.findOne({username: body.username})
-                if (user) return res.status(400).send({message: "USERNAME_EXISTS"})
-                if (!body.email) return res.status(400).send({message: "NO_EMAIL_PROVIDED"});
-                const userEmail = await collections.users.findOne({email: body.email})
-                if (userEmail) return res.status(400).send({message: "EMAIL_EXISTS"})
-                if (!body.password) return res.status(400).send({message: "NO_PASSWORD_PROVIDED"});
-                if (!body.firstName) return res.status(400).send({message: "NO_FIRSTNAME_PROVIDED"});
-                if (!body.lastName) return res.status(400).send({message: "NO_LASTNAME_PROVIDED"});
-                if (!body.deviceId) return res.status(400).send({message: "NO_DEVICE_ID_PROVIDED"});
-                body.password = await this.hashPassword(body.password);
-                const result = await collections.users.insertOne(body);
-                const authToken = crypto.randomUUID();
-                const resultAuth = await collections.userAuth.insertOne({
-                    deviceId: body.deviceId,
-                    authToken,
-                    username: body.username
+                const userCred = await createUserWithEmailAndPassword(auth, email, password)
+                // @ts-ignore
+                const user:UserAuth = userCred.user;
+                this.log.info("Registering user");
+                this.log.info("User", user.uid);
+                try {
+                    await collections.users.insertOne({
+                        "email": email,
+                        "username": username,
+                        "id": user.uid,
+                    });
+                    this.log.info("Successfully registered user");
+                } catch (error) {
+                    this.log.error("Failed to register user", error);
+                }
+                res.send({
+                    userID: user.uid,
+                    userAccessToken: user.stsTokenManager.accessToken,
+                    userRefreshToken: user.stsTokenManager.refreshToken,
                 });
-                if (result && resultAuth) {
-                    return res.status(201).send({
-                        message: `Successfully created a new user with id ${result.insertedId}`,
-                        authToken
-                    })
-                } else {
-                    return res.status(500).send("Failed to create a new user.");
-                }
-            } catch (err) {
-                this.log.error(err);
+            } catch (error) {
+                const errorCode = error.code;
+                const errorMessage = error.message;
+                this.log.error(errorMessage, errorCode);
+                res.send(errorMessage);
             }
         })
-
-        this.router.post("/signin", async (req: Request, res: Response) => {
-            const body: SigninRequest = req.body;
-            this.log.info("Request for signin");
+        this.router.post("/login", async (req:Request, res:Response) => {
+            // enable cors
+            res.set('Access-Control-Allow-Origin', '*');
+            const {email, password} = req.body;
             try {
-                if (!body) return res.status(400).send({message: "NO_BODY_PROVIDED"});
-                if (!body.password) return res.status(400).send({message: "NO_PASSWORD_PROVIDED"});
-                if (!body.username) return res.status(400).send({message: "NO_USERNAME_PROVIDED"});
-                const user = await collections.users.findOne({username: body.username});
-                if (!user) return res.status(401).send({message: "INVALID_USERNAME_PASSWORD"});
-                const isPasswordValid = await this.comparePassword(body.password, user.password);
-                if (isPasswordValid) {
-                    if (!body.deviceId) return res.status(400).send({message: "NO_DEVICE_ID_PROVIDED"});
-                    const authToken = crypto.randomUUID();
-                    const updatedAuth =  await
-                        collections.userAuth.updateOne({"username": body.username}, {$set: {authToken, deviceId: body.deviceId}});
-                    return res.send({authToken});
-                } else {
-                    return res.status(401).send({message: "INVALID_USERNAME_PASSWORD"});
-                }
-            } catch (err) {
-                this.log.error(err);
+                const userCred = await signInWithEmailAndPassword(getAuth(), email, password);
+                this.log.info("Logging in user");
+                // @ts-ignore
+                const user:UserAuth = userCred.user;
+                res.send({
+                    userID: user.uid,
+                    userAccessToken: user.stsTokenManager.accessToken,
+                    userRefreshToken: user.stsTokenManager.refreshToken,
+                });
+            } catch (error) {
+                const errorCode = error.code;
+                const errorMessage = error.message;
+                this.log.error(errorMessage, errorCode);
+                res.send(errorMessage);
             }
-        })
+        });
     }
-
-    private async hashPassword(plaintextPassword: string) {
-        const hash = await bycrypt.hash(plaintextPassword, 10);
-        return hash;
-    }
-
-    private async comparePassword(plaintextPassword: string, hash: string) {
-        const result = await bycrypt.compare(plaintextPassword, hash);
-        return result;
-    }
-
     public get(){
         return this.router;
     }

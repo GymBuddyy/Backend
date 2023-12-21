@@ -1,7 +1,6 @@
 import * as mongoDB from "mongodb";
 import * as dotenv from "dotenv";
-import { Logger } from "tslog";
-
+import { ILogObj, Logger } from "tslog";
 export const collections: {
     users?: mongoDB.Collection,
     userAuth?: mongoDB.Collection,
@@ -19,16 +18,13 @@ export async function connectToDatabase () {
     const usersCollection: mongoDB.Collection = db.collection("Users");
     const userAuthCollection: mongoDB.Collection = db.collection("UserAuth");
     const communityCollection: mongoDB.Collection = db.collection("Community");
-    const postCollection: mongoDB.Collection = db.collection("Post");
 
     collections.community = communityCollection;
-    collections.post = postCollection;
     collections.users = usersCollection;
     collections.userAuth = userAuthCollection;
-    log.info(`Successfully connected to database: ${db.databaseName} and collection:\n ${[
+    log.info(`Successfully connected to database: ${db.databaseName} and collections:\n ${[
         usersCollection.collectionName,
         userAuthCollection.collectionName,
-        postCollection.collectionName,
         communityCollection.collectionName
     ]}`);
  }
